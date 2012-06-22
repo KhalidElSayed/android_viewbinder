@@ -28,7 +28,8 @@ public class BinderActivity extends Activity implements BinderAdapter {
 
 	// Predefined layouts used for demonstration purposes.
 	private static final int[] LAYOUT_IDS = { R.layout.layout1,
-			R.layout.layout2, R.layout.layout3 };
+			R.layout.layout2, R.layout.layout3, R.layout.layout2,
+			R.layout.layout1 };
 
 	@Override
 	public View createView(ViewGroup container, int position) {
