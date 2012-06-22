@@ -55,10 +55,14 @@ public class BinderView extends FrameLayout implements View.OnTouchListener {
 			+ "  if (vPos.y >= 0.0 && vPos.y > uniformY) {          \r\n"
 			+ "    vec2 tPos = vec2(vPos.x, -vPos.y) * 0.5 + 0.5;   \r\n"
 			+ "    gl_FragColor = texture2D(sTop, tPos);            \r\n"
+			+ "    float c = max(0.0, uniformY);                    \r\n"
+			+ "    gl_FragColor *= mix(1.0, 0.5, c);                \r\n"
 			+ "  }                                                  \r\n"
 			+ "  else if (vPos.y < 0.0 && vPos.y < uniformY) {      \r\n"
 			+ "    vec2 tPos = vec2(vPos.x, -vPos.y) * 0.5 + 0.5;   \r\n"
 			+ "    gl_FragColor = texture2D(sBottom, tPos);         \r\n"
+			+ "    float c = max(0.0, uniformY);                    \r\n"
+			+ "    gl_FragColor *= mix(0.5, 1.0, c);                \r\n"
 			+ "  }                                                  \r\n"
 			+ "  else if (vPos.y >= 0.0) {                          \r\n"
 			+ "    float vy = -vPos.y / uniformY;                   \r\n"
@@ -151,13 +155,13 @@ public class BinderView extends FrameLayout implements View.OnTouchListener {
 		case MotionEvent.ACTION_DOWN:
 			if (my > getHeight() && mViewChildIndex < mViewChildren.length - 1) {
 				mFlipMode = FLIP_NEXT;
-				setBitmaps();
+				setRendererBitmaps();
 				mViewRenderer.setVisibility(View.VISIBLE);
 				mRenderer.setFlipPosition(-1f);
 			}
 			if (my < getHeight() && mViewChildIndex > 0) {
 				mFlipMode = FLIP_PREV;
-				setBitmaps();
+				setRendererBitmaps();
 				mViewRenderer.setVisibility(View.VISIBLE);
 				mRenderer.setFlipPosition(1f);
 			}
@@ -179,9 +183,6 @@ public class BinderView extends FrameLayout implements View.OnTouchListener {
 			mFlipMode = FLIP_NONE;
 
 			mRenderer.moveFlipPosition(my > getHeight() ? -1f : 1f);
-
-			// setView(mViewChildIndex);
-			// mViewRenderer.setVisibility(View.INVISIBLE);
 			break;
 		}
 
@@ -195,10 +196,31 @@ public class BinderView extends FrameLayout implements View.OnTouchListener {
 			mViewChildren[i] = adapter.createView(this, i);
 		}
 		mViewChildIndex = 0;
-		setView(0);
+		setCurrentView(0);
 	}
 
-	private void setBitmaps() {
+	private void setCurrentView(int index) {
+		if (index > 0) {
+			setViewVisibility(mViewChildren[index - 1], View.INVISIBLE);
+		}
+		if (index < mViewChildren.length - 1) {
+			setViewVisibility(mViewChildren[index + 1], View.INVISIBLE);
+		}
+		if (index >= 0 && index < mViewChildren.length) {
+			setViewVisibility(mViewChildren[index], View.VISIBLE);
+		}
+
+		for (int i = 0; i < index - 1; ++i) {
+			removeView(mViewChildren[i]);
+		}
+		for (int i = index + 2; i < mViewChildren.length; ++i) {
+			removeView(mViewChildren[i]);
+		}
+
+		mViewRenderer.setVisibility(View.INVISIBLE);
+	}
+
+	private void setRendererBitmaps() {
 		Bitmap top = Bitmap.createBitmap(getWidth(), getHeight(),
 				Bitmap.Config.ARGB_8888);
 		Bitmap bottom = Bitmap.createBitmap(getWidth(), getHeight(),
@@ -226,28 +248,7 @@ public class BinderView extends FrameLayout implements View.OnTouchListener {
 		mRenderer.setBitmaps(top, bottom);
 	}
 
-	private void setView(int index) {
-		if (index > 0) {
-			setView(mViewChildren[index - 1], View.INVISIBLE);
-		}
-		if (index < mViewChildren.length - 1) {
-			setView(mViewChildren[index + 1], View.INVISIBLE);
-		}
-		if (index >= 0 && index < mViewChildren.length) {
-			setView(mViewChildren[index], View.VISIBLE);
-		}
-
-		for (int i = 0; i < index - 1; ++i) {
-			removeView(mViewChildren[i]);
-		}
-		for (int i = index + 2; i < mViewChildren.length; ++i) {
-			removeView(mViewChildren[i]);
-		}
-
-		mViewRenderer.setVisibility(View.INVISIBLE);
-	}
-
-	private void setView(View view, int visibility) {
+	private void setViewVisibility(View view, int visibility) {
 		view.setVisibility(visibility);
 		for (int i = 0; i < getChildCount(); ++i) {
 			View v = getChildAt(i);
@@ -374,9 +375,10 @@ public class BinderView extends FrameLayout implements View.OnTouchListener {
 				post(new Runnable() {
 					@Override
 					public void run() {
-						setView(mViewChildIndex);
+						setCurrentView(mViewChildIndex);
 					}
 				});
+				return;
 			}
 
 			GLES20.glUniform1f(uniformY, mFlipPosition);
