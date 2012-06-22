@@ -70,6 +70,8 @@ public class BinderView extends FrameLayout implements View.OnTouchListener {
 			+ "    tPos.x += (1.0 - uniformY) * 0.5 * vPos.x * vy;  \r\n"
 			+ "    tPos = tPos * 0.5 + 0.5;                         \r\n"
 			+ "    gl_FragColor = texture2D(sBottom, tPos);         \r\n"
+			+ "    float c = max(0.0, uniformY);                    \r\n"
+			+ "    gl_FragColor *= mix(0.5, 1.0, c);                \r\n"
 			+ "  }                                                  \r\n"
 			+ "  else if (vPos.y < 0.0) {                           \r\n"
 			+ "    float vy = -vPos.y / uniformY;                   \r\n"
@@ -77,6 +79,8 @@ public class BinderView extends FrameLayout implements View.OnTouchListener {
 			+ "    tPos.x += (1.0 + uniformY) * 0.5 * vPos.x * vy;  \r\n"
 			+ "    tPos = tPos * 0.5 + 0.5;                         \r\n"
 			+ "    gl_FragColor = texture2D(sTop, tPos);            \r\n"
+			+ "    float c = min(1.0, 1.0 + uniformY);              \r\n"
+			+ "    gl_FragColor *= mix(1.0, 0.5, c);                \r\n"
 			+ "  }                                                  \r\n"
 			+ "}                                                    \r\n";
 
@@ -138,8 +142,6 @@ public class BinderView extends FrameLayout implements View.OnTouchListener {
 				android.view.ViewGroup.LayoutParams.MATCH_PARENT);
 		addView(mViewRenderer, params);
 		addView(mViewHook, params);
-
-		setMeasureAllChildren(true);
 	}
 
 	@Override
@@ -157,23 +159,25 @@ public class BinderView extends FrameLayout implements View.OnTouchListener {
 			if (my > getHeight() && mViewChildIndex < mViewChildren.length - 1) {
 				mFlipMode = FLIP_NEXT;
 				setRendererBitmaps();
-				mViewRenderer.setVisibility(View.VISIBLE);
-				mViewRenderer.onResume();
+				mViewRenderer.bringToFront();
 				mRenderer.setFlipPosition(-1f);
+				invalidate();
 			}
 			if (my < getHeight() && mViewChildIndex > 0) {
 				mFlipMode = FLIP_PREV;
 				setRendererBitmaps();
-				mViewRenderer.setVisibility(View.VISIBLE);
-				mViewRenderer.onResume();
+				mViewRenderer.bringToFront();
 				mRenderer.setFlipPosition(1f);
+				invalidate();
 			}
 			break;
 
 		case MotionEvent.ACTION_MOVE:
-			float fp = (getHeight() - my) / getHeight();
-			fp = Math.min(1f, Math.max(-1f, fp));
-			mRenderer.moveFlipPosition(fp);
+			if (mFlipMode != FLIP_NONE) {
+				float fp = (getHeight() - my) / getHeight();
+				fp = Math.min(1f, Math.max(-1f, fp));
+				mRenderer.moveFlipPosition(fp);
+			}
 			break;
 
 		case MotionEvent.ACTION_UP:
@@ -203,11 +207,9 @@ public class BinderView extends FrameLayout implements View.OnTouchListener {
 	}
 
 	private void setCurrentView(int index) {
-		mViewRenderer.setVisibility(View.INVISIBLE);
-		mViewRenderer.onPause();
-
 		if (index >= 0 && index < mViewChildren.length) {
 			setViewVisibility(mViewChildren[index], View.VISIBLE);
+			mViewChildren[index].bringToFront();
 		}
 		if (index > 0) {
 			setViewVisibility(mViewChildren[index - 1], View.INVISIBLE);
@@ -223,7 +225,7 @@ public class BinderView extends FrameLayout implements View.OnTouchListener {
 			removeView(mViewChildren[i]);
 		}
 
-		requestLayout();
+		invalidate();
 	}
 
 	private void setRendererBitmaps() {
