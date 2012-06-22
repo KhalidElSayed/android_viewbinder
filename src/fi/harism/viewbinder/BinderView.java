@@ -61,7 +61,7 @@ public class BinderView extends FrameLayout implements View.OnTouchListener {
 			+ "  else if (vPos.y < 0.0 && vPos.y < uniformY) {      \r\n"
 			+ "    vec2 tPos = vec2(vPos.x, -vPos.y) * 0.5 + 0.5;   \r\n"
 			+ "    gl_FragColor = texture2D(sBottom, tPos);         \r\n"
-			+ "    float c = max(0.0, uniformY);                    \r\n"
+			+ "    float c = min(1.0, 1.0 + uniformY);              \r\n"
 			+ "    gl_FragColor *= mix(0.5, 1.0, c);                \r\n"
 			+ "  }                                                  \r\n"
 			+ "  else if (vPos.y >= 0.0) {                          \r\n"
@@ -138,7 +138,8 @@ public class BinderView extends FrameLayout implements View.OnTouchListener {
 				android.view.ViewGroup.LayoutParams.MATCH_PARENT);
 		addView(mViewRenderer, params);
 		addView(mViewHook, params);
-		mViewRenderer.setVisibility(View.INVISIBLE);
+
+		setMeasureAllChildren(true);
 	}
 
 	@Override
@@ -157,12 +158,14 @@ public class BinderView extends FrameLayout implements View.OnTouchListener {
 				mFlipMode = FLIP_NEXT;
 				setRendererBitmaps();
 				mViewRenderer.setVisibility(View.VISIBLE);
+				mViewRenderer.onResume();
 				mRenderer.setFlipPosition(-1f);
 			}
 			if (my < getHeight() && mViewChildIndex > 0) {
 				mFlipMode = FLIP_PREV;
 				setRendererBitmaps();
 				mViewRenderer.setVisibility(View.VISIBLE);
+				mViewRenderer.onResume();
 				mRenderer.setFlipPosition(1f);
 			}
 			break;
@@ -200,14 +203,17 @@ public class BinderView extends FrameLayout implements View.OnTouchListener {
 	}
 
 	private void setCurrentView(int index) {
+		mViewRenderer.setVisibility(View.INVISIBLE);
+		mViewRenderer.onPause();
+
+		if (index >= 0 && index < mViewChildren.length) {
+			setViewVisibility(mViewChildren[index], View.VISIBLE);
+		}
 		if (index > 0) {
 			setViewVisibility(mViewChildren[index - 1], View.INVISIBLE);
 		}
 		if (index < mViewChildren.length - 1) {
 			setViewVisibility(mViewChildren[index + 1], View.INVISIBLE);
-		}
-		if (index >= 0 && index < mViewChildren.length) {
-			setViewVisibility(mViewChildren[index], View.VISIBLE);
 		}
 
 		for (int i = 0; i < index - 1; ++i) {
@@ -217,7 +223,7 @@ public class BinderView extends FrameLayout implements View.OnTouchListener {
 			removeView(mViewChildren[i]);
 		}
 
-		mViewRenderer.setVisibility(View.INVISIBLE);
+		requestLayout();
 	}
 
 	private void setRendererBitmaps() {
@@ -321,8 +327,6 @@ public class BinderView extends FrameLayout implements View.OnTouchListener {
 		@Override
 		public void onDrawFrame(GL10 unused) {
 
-			GLES20.glClearColor(.2f, .4f, .8f, 1f);
-			GLES20.glClear(GLES20.GL_COLOR_BUFFER_BIT);
 			GLES20.glDisable(GLES20.GL_DEPTH_TEST);
 			GLES20.glDisable(GLES20.GL_CULL_FACE);
 
@@ -378,7 +382,6 @@ public class BinderView extends FrameLayout implements View.OnTouchListener {
 						setCurrentView(mViewChildIndex);
 					}
 				});
-				return;
 			}
 
 			GLES20.glUniform1f(uniformY, mFlipPosition);
