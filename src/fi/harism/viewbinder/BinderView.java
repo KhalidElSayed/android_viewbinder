@@ -158,14 +158,14 @@ public class BinderView extends FrameLayout implements View.OnTouchListener {
 		case MotionEvent.ACTION_DOWN:
 			if (my > getHeight() && mViewChildIndex < mViewChildren.length - 1) {
 				mFlipMode = FLIP_NEXT;
-				setRendererBitmaps();
+				updateRendererBitmaps();
 				mViewRenderer.bringToFront();
 				mRenderer.setFlipPosition(-1f);
 				invalidate();
 			}
 			if (my < getHeight() && mViewChildIndex > 0) {
 				mFlipMode = FLIP_PREV;
-				setRendererBitmaps();
+				updateRendererBitmaps();
 				mViewRenderer.bringToFront();
 				mRenderer.setFlipPosition(1f);
 				invalidate();
@@ -196,6 +196,12 @@ public class BinderView extends FrameLayout implements View.OnTouchListener {
 		return true;
 	}
 
+	/**
+	 * Setter for View adapter for this Binder View.
+	 * 
+	 * @param adapter
+	 *            View Adapter.
+	 */
 	public void setAdapter(BinderAdapter adapter) {
 		int count = adapter.getCount();
 		mViewChildren = new View[count];
@@ -206,6 +212,9 @@ public class BinderView extends FrameLayout implements View.OnTouchListener {
 		setCurrentView(0);
 	}
 
+	/**
+	 * Setter for current visible View.
+	 */
 	private void setCurrentView(int index) {
 		if (index >= 0 && index < mViewChildren.length) {
 			setViewVisibility(mViewChildren[index], View.VISIBLE);
@@ -228,7 +237,25 @@ public class BinderView extends FrameLayout implements View.OnTouchListener {
 		invalidate();
 	}
 
-	private void setRendererBitmaps() {
+	/**
+	 * Changes requested view visibility.
+	 */
+	private void setViewVisibility(View view, int visibility) {
+		view.setVisibility(visibility);
+		// View is already attached.
+		if (indexOfChild(view) >= 0) {
+			return;
+		}
+		// otherwise add view to ViewGroup.
+		addView(view, 0);
+	}
+
+	/**
+	 * Updates renderer Bitmaps.
+	 */
+	private void updateRendererBitmaps() {
+
+		// Generate two offscreen bitmaps.
 		Bitmap top = Bitmap.createBitmap(getWidth(), getHeight(),
 				Bitmap.Config.ARGB_8888);
 		Bitmap bottom = Bitmap.createBitmap(getWidth(), getHeight(),
@@ -256,17 +283,9 @@ public class BinderView extends FrameLayout implements View.OnTouchListener {
 		mRenderer.setBitmaps(top, bottom);
 	}
 
-	private void setViewVisibility(View view, int visibility) {
-		view.setVisibility(visibility);
-		for (int i = 0; i < getChildCount(); ++i) {
-			View v = getChildAt(i);
-			if (v == view) {
-				return;
-			}
-		}
-		addView(view, 0);
-	}
-
+	/**
+	 * Private renderer class.
+	 */
 	private class Renderer implements GLSurfaceView.Renderer {
 
 		private Bitmap mBitmapTop, mBitmapBottom;
@@ -277,12 +296,18 @@ public class BinderView extends FrameLayout implements View.OnTouchListener {
 		private int mProgram;
 		private int[] mTextureIds;
 
+		/**
+		 * Default constructor.
+		 */
 		public Renderer() {
 			final byte[] COORDS = { -1, 1, -1, -1, 1, 1, 1, -1 };
 			mCoords = ByteBuffer.allocateDirect(8);
 			mCoords.put(COORDS).position(0);
 		}
 
+		/**
+		 * Private shader loader.
+		 */
 		private final int loadProgram(String vs, String fs) throws Exception {
 			int vertexShader = loadShader(GLES20.GL_VERTEX_SHADER, vs);
 			int fragmentShader = loadShader(GLES20.GL_FRAGMENT_SHADER, fs);
@@ -303,6 +328,9 @@ public class BinderView extends FrameLayout implements View.OnTouchListener {
 			return program;
 		}
 
+		/**
+		 * Private shader loader/compiler.
+		 */
 		private final int loadShader(int shaderType, String source)
 				throws Exception {
 			int shader = GLES20.glCreateShader(shaderType);
@@ -321,6 +349,9 @@ public class BinderView extends FrameLayout implements View.OnTouchListener {
 			return shader;
 		}
 
+		/**
+		 * Animates flip position to requested position.
+		 */
 		public void moveFlipPosition(float posY) {
 			mFlipPositionTarget = posY;
 			mViewRenderer.requestRender();
@@ -329,9 +360,11 @@ public class BinderView extends FrameLayout implements View.OnTouchListener {
 		@Override
 		public void onDrawFrame(GL10 unused) {
 
+			// Disable unneeded rendering flags.
 			GLES20.glDisable(GLES20.GL_DEPTH_TEST);
 			GLES20.glDisable(GLES20.GL_CULL_FACE);
 
+			// Allocate new texture ids if needed.
 			if (mTextureIds == null) {
 				mTextureIds = new int[2];
 				GLES20.glGenTextures(2, mTextureIds, 0);
@@ -349,6 +382,7 @@ public class BinderView extends FrameLayout implements View.OnTouchListener {
 				}
 			}
 
+			// If we have new Bitmaps.
 			if (mBitmapTop != null) {
 				GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, mTextureIds[0]);
 				GLUtils.texImage2D(GLES20.GL_TEXTURE_2D, 0, mBitmapTop, 0);
@@ -362,22 +396,26 @@ public class BinderView extends FrameLayout implements View.OnTouchListener {
 				mBitmapBottom = null;
 			}
 
+			// Use our vertex/fragment shader program.
 			GLES20.glUseProgram(mProgram);
-
+			// Fetch variable ids.
 			int uniformY = GLES20.glGetUniformLocation(mProgram, "uniformY");
 			int sTop = GLES20.glGetUniformLocation(mProgram, "sTop");
 			int sBottom = GLES20.glGetUniformLocation(mProgram, "sBottom");
 			int aPos = GLES20.glGetAttribLocation(mProgram, "aPos");
 
+			// If there's room for animation.
 			if (Math.abs(mFlipPosition - mFlipPositionTarget) > 0.01f) {
 				long currentTime = SystemClock.uptimeMillis();
 				float t = Math.min(1f, (currentTime - mLastRenderTime) * .01f);
 				mFlipPosition = mFlipPosition
 						+ (mFlipPositionTarget - mFlipPosition) * t;
-				GLES20.glUniform1f(uniformY, mFlipPosition);
 				mLastRenderTime = currentTime;
 				mViewRenderer.requestRender();
-			} else if (mFlipMode == FLIP_NONE) {
+			}
+			// If we're done with animation plus user left us with touch up
+			// event.
+			else if (mFlipMode == FLIP_NONE) {
 				post(new Runnable() {
 					@Override
 					public void run() {
@@ -386,32 +424,38 @@ public class BinderView extends FrameLayout implements View.OnTouchListener {
 				});
 			}
 
+			// Set flip position variable.
 			GLES20.glUniform1f(uniformY, mFlipPosition);
-
+			// Set texture variables.
 			GLES20.glActiveTexture(GLES20.GL_TEXTURE0);
 			GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, mTextureIds[0]);
 			GLES20.glUniform1i(sTop, 0);
 			GLES20.glActiveTexture(GLES20.GL_TEXTURE1);
 			GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, mTextureIds[1]);
 			GLES20.glUniform1i(sBottom, 1);
-
+			// Set vertex position variables.
 			GLES20.glVertexAttribPointer(aPos, 2, GLES20.GL_BYTE, false, 0,
 					mCoords);
 			GLES20.glEnableVertexAttribArray(aPos);
+			// Render quad.
 			GLES20.glDrawArrays(GLES20.GL_TRIANGLE_STRIP, 0, 4);
 		}
 
 		@Override
 		public void onSurfaceChanged(GL10 unused, int width, int height) {
+			// All we have to do is set viewport.
 			GLES20.glViewport(0, 0, width, height);
 		}
 
 		@Override
 		public void onSurfaceCreated(GL10 unused, EGLConfig config) {
 			try {
+				// Force instantiation for new texture ids.
 				mTextureIds = null;
+				// Load vertex/fragment shader program.
 				mProgram = loadProgram(SHADER_VERTEX, SHADER_FRAGMENT);
 			} catch (final Exception ex) {
+				// On error show Toast.
 				post(new Runnable() {
 					@Override
 					public void run() {
@@ -422,6 +466,9 @@ public class BinderView extends FrameLayout implements View.OnTouchListener {
 			}
 		}
 
+		/**
+		 * Setter for Bitmaps.
+		 */
 		public void setBitmaps(Bitmap top, Bitmap bottom) {
 			if (top != null) {
 				mBitmapTop = top;
@@ -431,6 +478,9 @@ public class BinderView extends FrameLayout implements View.OnTouchListener {
 			}
 		}
 
+		/**
+		 * Setter for flip position, value between [-1, 1].
+		 */
 		public void setFlipPosition(float posY) {
 			mFlipPosition = posY;
 			mFlipPositionTarget = posY;
