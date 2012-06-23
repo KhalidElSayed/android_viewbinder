@@ -37,7 +37,7 @@ import android.widget.Toast;
 /**
  * Actual View Binder implementation class.
  */
-public class BinderView extends FrameLayout implements View.OnTouchListener {
+public class BinderView extends FrameLayout {
 
 	// Static values for current flip mode.
 	private static final int FLIP_NEXT = 0;
@@ -97,7 +97,6 @@ public class BinderView extends FrameLayout implements View.OnTouchListener {
 	private Renderer mRenderer = new Renderer();
 	private int mViewChildIndex = 0;
 	private View[] mViewChildren = new View[0];
-	private View mViewHook;
 	private GLSurfaceView mViewRenderer;
 
 	/**
@@ -134,24 +133,14 @@ public class BinderView extends FrameLayout implements View.OnTouchListener {
 		mViewRenderer.setRenderer(mRenderer);
 		mViewRenderer.setRenderMode(GLSurfaceView.RENDERMODE_WHEN_DIRTY);
 
-		mViewHook = new View(context);
-		mViewHook.setOnTouchListener(this);
-
 		LayoutParams params = new LayoutParams(
 				android.view.ViewGroup.LayoutParams.MATCH_PARENT,
 				android.view.ViewGroup.LayoutParams.MATCH_PARENT);
 		addView(mViewRenderer, params);
-		addView(mViewHook, params);
 	}
 
 	@Override
-	public boolean onTouch(View v, MotionEvent event) {
-		if (mFlipMode == FLIP_NONE
-				&& (mViewChildIndex >= mViewChildren.length || mViewChildren[mViewChildIndex]
-						.onTouchEvent(event))) {
-			return true;
-		}
-
+	public boolean onTouchEvent(MotionEvent event) {
 		float my = event.getY() * 2;
 		switch (event.getAction()) {
 
